@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <!-- Rendered at 1280×640 into art/banner.png by demo/screenshots.sh. -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap">
+    <style>
+        html, body { margin: 0; width: 1280px; height: 640px; overflow: hidden; background: #fff; color: #16162a; color-scheme: light; }
+        body { position: relative; font-family: "Geist", sans-serif; -webkit-font-smoothing: antialiased; }
+        .copy { position: absolute; left: 72px; top: 64px; width: 560px; }
+        .mark { display: flex; align-items: center; gap: 14px; font: 600 24px/1 "Geist"; letter-spacing: -.02em; }
+        .mark img { width: 40px; height: 40px; }
+        .mark span { color: #74748b; font-weight: 500; }
+        h1 { font: 600 60px/1.03 "Geist"; letter-spacing: -.05em; margin: 64px 0 22px; }
+        p { font: 400 22px/1.5 "Geist"; color: #4b4b63; margin: 0 0 34px; letter-spacing: -.01em; }
+        code { display: inline-block; white-space: nowrap; font: 400 16px/1 "Geist Mono", monospace; background: #f0f0f7; border-radius: 10px; padding: 16px 20px; }
+        code::before { content: "$ "; color: #74748b; }
+        .shot { position: absolute; left: 680px; top: 72px; width: 900px; border: 1px solid #e4e4ef; border-radius: 16px; box-shadow: 0 1px 2px rgb(22 22 42 / .04), 0 30px 70px -30px rgb(61 78 255 / .45); }
+    </style>
+</head>
+<body>
+    <div class="copy">
+        <div class="mark"><img src="ruvelo-mark.svg" alt="">Laravel Security Alerts <span>by Ruvelo</span></div>
+        <h1>Know when a dependency turns dangerous.</h1>
+        <p>A daily check of your Composer and npm packages, with flaws exploited in the wild first. Free sources, no keys.</p>
+        <code>composer require ruvelo/laravel-security-alerts</code>
+    </div>
+    <img class="shot" src="laravel-security-alerts/art/screenshot-report.png" alt="">
+</body>
+</html>
