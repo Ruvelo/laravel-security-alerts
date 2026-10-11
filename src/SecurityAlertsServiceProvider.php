@@ -6,8 +6,13 @@ namespace Ruvelo\SecurityAlerts;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Mcp\Server\Registrar;
+use Laravel\Pulse\Livewire\Card;
+use Livewire\LivewireManager;
 use Ruvelo\SecurityAlerts\Console\CheckCommand;
 use Ruvelo\SecurityAlerts\Console\DigestCommand;
+use Ruvelo\SecurityAlerts\Integrations\Pulse\SecurityAlertsCard;
+use Ruvelo\SecurityAlerts\Mcp\SecurityAlertsServer;
 
 class SecurityAlertsServiceProvider extends ServiceProvider
 {
@@ -45,6 +50,12 @@ class SecurityAlertsServiceProvider extends ServiceProvider
         }
 
         $this->callAfterResolving(Schedule::class, fn (Schedule $schedule) => $this->schedule($schedule));
+
+        $this->registerPulseCard();
+
+        if (config('security-alerts.mcp.enabled', false)) {
+            $this->registerMcpServer();
+        }
     }
 
     /**
@@ -86,5 +97,42 @@ class SecurityAlertsServiceProvider extends ServiceProvider
     private static function time(mixed $value, string $default): string
     {
         return is_string($value) && preg_match('/^([01]?\d|2[0-3]):[0-5]\d$/', $value) === 1 ? $value : $default;
+    }
+
+    /**
+     * The Pulse card is optional: it needs laravel/pulse (and so Livewire).
+     */
+    private function registerPulseCard(): void
+    {
+        if (! class_exists(Card::class)) {
+            return;
+        }
+
+        $this->callAfterResolving('livewire', function (LivewireManager $livewire): void {
+            $livewire->component('security-alerts', SecurityAlertsCard::class);
+        });
+    }
+
+    /**
+     * The MCP server is optional: it needs laravel/mcp, which the package
+     * only suggests. Without it, say so in the log rather than break the app.
+     */
+    private function registerMcpServer(): void
+    {
+        if (! class_exists(Registrar::class)) {
+            logger()->warning('The security alerts MCP server is enabled (security-alerts.mcp.enabled), but laravel/mcp is not installed. Run: composer require laravel/mcp');
+
+            return;
+        }
+
+        $handle = config('security-alerts.mcp.local');
+        if (is_string($handle) && $handle !== '') {
+            $this->app->make(Registrar::class)->local($handle, SecurityAlertsServer::class);
+        }
+
+        $path = config('security-alerts.mcp.path');
+        if (is_string($path) && $path !== '') {
+            $this->loadRoutesFrom(__DIR__.'/../routes/mcp.php');
+        }
     }
 }

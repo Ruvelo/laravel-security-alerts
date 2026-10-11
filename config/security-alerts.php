@@ -131,4 +131,23 @@ return [
 
     'run_migrations' => true,
 
+    /*
+    |--------------------------------------------------------------------------
+    | MCP (AI agents)
+    |--------------------------------------------------------------------------
+    |
+    | With laravel/mcp installed and this enabled, agents get a read-only
+    | `list_security_alerts` tool. `local` is the handle for `php artisan
+    | mcp:start {local}`; `path` an HTTP endpoint guarded by `middleware`.
+    | Null turns either off.
+    |
+    */
+
+    'mcp' => [
+        'enabled' => (bool) env('SECURITY_ALERTS_MCP', false),
+        'local' => 'security-alerts',
+        'path' => null,
+        'middleware' => ['auth:sanctum'],
+    ],
+
 ];

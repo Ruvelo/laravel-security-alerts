@@ -1,0 +1,3 @@
+.security-alerts-exploited { color: #e5384f; }
+.dark .security-alerts-exploited { color: #ff6b80; }
+.security-alerts-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
