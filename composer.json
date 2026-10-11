@@ -27,7 +27,7 @@
     "require": {
         "php": "^8.3",
         "composer/semver": "^3.4",
-        "guzzlehttp/promises": "^2.0.3",
+        "guzzlehttp/promises": "^3.0.2",
         "laravel/framework": "^12.4.1|^13.0"
     },
     "require-dev": {
