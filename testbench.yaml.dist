@@ -1,0 +1,3 @@
+# Lets Larastan boot the package during analysis.
+providers:
+  - Ruvelo\SecurityAlerts\SecurityAlertsServiceProvider

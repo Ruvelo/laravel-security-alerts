@@ -1,0 +1,13 @@
+# Keep Composer installs to what an app needs.
+/.github export-ignore
+/art export-ignore
+/demo export-ignore
+/tests export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/phpunit.xml.dist export-ignore
+/.editorconfig export-ignore
+/CONTRIBUTING.md export-ignore
+/phpstan.neon.dist export-ignore
+/pint.json export-ignore
+/testbench.yaml.dist export-ignore
