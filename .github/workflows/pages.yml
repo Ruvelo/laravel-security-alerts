@@ -41,7 +41,7 @@ jobs:
       - name: Add the images
         run: cp -r art build/site/art
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: build/site
 
