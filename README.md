@@ -68,7 +68,7 @@ Watching many sites? [Valtry](https://valtry.co.uk/?utm_source=ruvelo&utm_medium
 
 - PHP 8.3+
 - Laravel 12 or 13, with the [scheduler](https://laravel.com/docs/scheduling#running-the-scheduler) running
-- For Slack: `composer require laravel/slack-notification-channel`
+- For Slack: `composer require laravel/slack-notification-channel` (3.6 or later)
 
 ## Where it looks, and what it sends
 

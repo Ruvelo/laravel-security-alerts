@@ -236,7 +236,7 @@ class NotificationTest extends TestCase
         $this->assertStringContainsString('predis/predis 3.2.0 · Critical · update to 3.3.0 or later', $text);
         $this->assertStringContainsString('livewire/livewire 3.6.2 · Medium · fixed after 3.8.2', $text);
         $this->assertStringContainsString('href="https://github.com/advisories/GHSA-w6f5-v2h6-g786"', $html);
-        $this->assertStringContainsString('vite: `server.fs.deny` bypass on Windows alternate paths · CVE-2026-53571', $text);
+        $this->assertStringContainsString('vite: `server.fs.deny` bypass on Windows alternate paths · CVE-2026-53571 · Advisory', $text);
         $this->assertStringContainsString('</ul>', $html);
         $this->assertMatchesRegularExpression('#</ul>\s*<p[^>]*>You\'ll hear about each of these once.#', $html);
         $this->assertLessThan(strpos($html, 'predis/predis'), strpos($html, 'livewire/livewire'), 'Exploited first');
@@ -255,6 +255,18 @@ class NotificationTest extends TestCase
         $this->assertStringNotContainsString('<script>', $html);
         $this->assertStringNotContainsString('href="javascript:', $html);
         $this->assertStringNotContainsString('<strong>bold</strong>', $html);
+    }
+
+    public function test_a_hostile_link_cannot_break_out_of_the_mail_link(): void
+    {
+        $safe = SecurityAlert::factory()->create(['link' => 'https://example.com/a) <img src=x onerror=alert(1)> (']);
+        $script = SecurityAlert::factory()->create(['link' => 'javascript:alert(1)']);
+
+        $html = (string) (new VulnerabilitiesFound(collect([$safe, $script])))->toMail(new AnonymousNotifiable)->render();
+
+        $this->assertStringNotContainsString('<img src=x', $html);
+        $this->assertStringContainsString('href="https://example.com/a%29%20%3Cimg%20src=x%20onerror=alert%281%29%3E%20%28"', $html);
+        $this->assertStringNotContainsString('javascript:', $html);
     }
 
     public function test_severity_labels_in_the_mail_table(): void
