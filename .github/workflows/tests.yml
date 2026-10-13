@@ -18,6 +18,9 @@ jobs:
           extensions: mbstring, intl
           coverage: none
 
+      - name: Use the core from GitHub until it is on Packagist
+        run: composer config repositories.core vcs https://github.com/Ruvelo/security-advisories
+
       - name: Install dependencies
         run: composer update --prefer-dist --no-interaction --no-progress
 
@@ -51,6 +54,9 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: mbstring, intl
           coverage: none
+
+      - name: Use the core from GitHub until it is on Packagist
+        run: composer config repositories.core vcs https://github.com/Ruvelo/security-advisories
 
       - name: Install dependencies
         run: |
