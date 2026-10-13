@@ -18,7 +18,7 @@ Exit codes: `0` fine, `1` a finding reached `--fail-on`, `2` a lockfile or feed 
 
 ### PHP API
 
-Use the static `Ruvelo\SecurityAlerts\SecurityAlerts` class. Don't call Packagist, OSV or CISA yourself, and don't parse `composer.lock` by hand.
+Use the static `Ruvelo\SecurityAlerts\SecurityAlerts` class. Don't call Valtry, Packagist, OSV or CISA yourself, and don't parse `composer.lock` by hand.
 
 @verbatim
 <code-snippet name="Scan, check and read alerts" lang="php">
@@ -36,7 +36,7 @@ SecurityAlerts::lastCheck();               // ['checked_at' => CarbonImmutable, 
 </code-snippet>
 @endverbatim
 
-- A `Finding` has `package`, `version`, `ecosystem` (`Ecosystem::Composer|Npm`), `advisoryId`, `title`, `severity` (`Severity::Critical|High|Medium|Low|Unknown`), `cve`, `link`, `fixedIn`, `dev`, and `exploited` (a `KevEntry` with `dateAdded`, `dueDate`, `ransomware`, or null). `isExploited()`.
+- A `Finding` (`Ruvelo\SecurityAdvisories\Finding`) has `package`, `installed`, `ecosystem` (`Ecosystem::Composer|Npm`), `advisoryId`, `title`, `severity` (`Severity::Critical|High|Medium|Low|NotRated`), `cve`, `link`, `fixedIn`, `isDev`, and `exploited` (a `KevEntry` with `dateAdded`, `dueDate`, `ransomware`, or null). `isExploited()`.
 - `Ruvelo\SecurityAlerts\Models\SecurityAlert` rows are written only by `SecurityAlerts::check()`. Never insert or update them yourself: that would break "alert once". Scopes: `open()`, `exploited()`, `worstFirst()`.
 - Exceptions extend `Ruvelo\SecurityAlerts\Exceptions\SecurityAlertsException`: `NotInstalled` (run the migration), `LockfileUnreadable`, `SourceUnavailable`, `InvalidThreshold`. `scan()` turns lockfile and feed failures into `$report->problems` instead of throwing.
 
@@ -79,10 +79,10 @@ Never let tests reach the feeds: fake them with `Http::fake()` (URLs under `pack
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 
 SecurityAlert::factory()->exploited()->forPackage('livewire/livewire', '3.6.2')->create();
-SecurityAlert::factory()->severity(\Ruvelo\SecurityAlerts\Severity::High)->create();
+SecurityAlert::factory()->severity(\Ruvelo\SecurityAdvisories\Severity::High)->create();
 SecurityAlert::factory()->resolved()->create();
 SecurityAlert::factory()->pending()->create();   // not yet notified
 </code-snippet>
 @endverbatim
 
-Config (`config/security-alerts.php`, publish with `--tag=security-alerts-config`): `notify.*` (`mail`, `slack`, `via`, `min_severity`), `schedule.*`, `digest.*`, `composer.*` and `npm.*` (`lockfile`, `include_dev`), `sources.*.url`, `sources.kev.enabled`, `cache.*`, `http.*`, `table`, `run_migrations`, `mcp.*`.
+Config (`config/security-alerts.php`, publish with `--tag=security-alerts-config`): `notify.*` (`mail`, `slack`, `via`, `min_severity`), `schedule.*`, `digest.*`, `composer.*` and `npm.*` (`lockfile`, `include_dev`), `source` (`valtry` or `public`; `SECURITY_ALERTS_SOURCE=public` never contacts Valtry), `valtry_url`, `sources.*.url`, `sources.kev.enabled`, `cache.*`, `http.*`, `table`, `run_migrations`, `mcp.*`.

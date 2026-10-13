@@ -30,7 +30,7 @@ composer check
 
 ## The fixtures
 
-`tests/fixtures` holds real answers from Packagist, OSV and CISA, recorded for the lockfiles of Halyard, the made-up app in the demo. `Http::preventStrayRequests()` is on in every test: a test that reaches the network fails.
+`tests/fixtures` holds real answers from Packagist, OSV and CISA, recorded for the lockfiles of Halyard, the made-up app in the demo. `Http::preventStrayRequests()` is on in every test, and the package's PSR-18 client is bound to one that sends through the Http facade: a test that reaches the network fails. The Valtry path is tested with answers signed by a key made for the test.
 
 - To test a new case, change the lockfile in the test (`$this->lockfile('composer', [...])`) or one feed's answer (`$this->feed('www.cisa.gov/*', Http::response([...]))`) rather than the shared fixtures.
 - If you refresh the fixtures, record real responses, keep the KEV catalogue trimmed, and update the counts the tests and README expect.
@@ -51,7 +51,7 @@ composer check
 src/SecurityAlerts.php        The API: scan(), check(), open(), lastCheck(), notifyUsing()
 src/Scanner.php               Lockfiles in, Report out
 src/Lockfiles/                composer.lock and package-lock.json readers
-src/Sources/                  Packagist, OSV and CISA KEV clients, with caching
+src/Scanner.php                wires ruvelo/security-advisories to the config, Guzzle and the cache
 src/Versions.php              Constraint matching and fixed versions
 src/Recorder.php              The one place alerts are written, and where events fire
 src/Notifier.php              Who gets told, and marking alerts as sent

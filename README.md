@@ -59,7 +59,7 @@ That's all: the daily check schedules itself. Try `php artisan security-alerts:c
 - **Mail, Slack and your own notifiables**, plus events (`VulnerabilityFound`, `VulnerabilityExploited`, `VulnerabilityResolved`) to hook anything else.
 - **Scheduled for you**: a daily check at 07:00, an optional weekly digest.
 - **CI-ready command**: `--fail-on=exploited|critical|high|medium|any`, `--json`, exit code 2 when it couldn't check everything.
-- **Free sources, no keys**: Packagist, OSV.dev and CISA. Only package names and versions leave your server, as with `composer audit`.
+- **No keys**: signed answers from Valtry's Advisory API (package names only, never versions), or Packagist, OSV.dev and CISA directly, which is also the automatic fallback and the opt-out (`SECURITY_ALERTS_SOURCE=public`).
 - **Optional extras**: a [Laravel Pulse](https://pulse.laravel.com) card, a [spatie/laravel-health](https://github.com/spatie/laravel-health) check, an MCP tool for AI agents and [Laravel Boost](https://laravel.com/docs/boost) guidelines. None is required.
 
 Watching many sites? [Valtry](https://valtry.co.uk/?utm_source=ruvelo&utm_medium=github&utm_campaign=laravel-security-alerts) scans them from the outside.
@@ -72,13 +72,21 @@ Watching many sites? [Valtry](https://valtry.co.uk/?utm_source=ruvelo&utm_medium
 
 ## Where it looks, and what it sends
 
+By default a check asks [Valtry's Advisory API](https://valtry.co.uk/docs/api/advisories), and uses the public feeds whenever Valtry can't answer. Both give the same findings; the scanning, matching and comparing are done by [`ruvelo/security-advisories`](https://github.com/Ruvelo/security-advisories), the core shared by Ruvelo's security packages.
+
 | Source | For | What leaves your server |
 |---|---|---|
-| [Packagist security advisories](https://packagist.org/apidoc#list-security-advisories) | Composer packages. It's the API `composer audit` uses, fed by the GitHub Advisory Database and FriendsOfPHP | Package names, in a POST of up to 200 at a time |
-| [OSV.dev](https://osv.dev) | npm packages from `package-lock.json` | Package names and versions; then each matching advisory is fetched by its ID |
-| [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | Which CVEs are being exploited | Nothing: the catalogue is downloaded whole |
+| Valtry Advisory API (default) | Composer and npm packages, and which advisories CISA lists as exploited | **Package names only**, and a random nonce. Never versions: they are matched on your server |
+| [Packagist security advisories](https://packagist.org/apidoc#list-security-advisories) (fallback, or `public`) | Composer packages. It's the API `composer audit` uses, fed by the GitHub Advisory Database and FriendsOfPHP | Package names, in a POST of up to 200 at a time |
+| [OSV.dev](https://osv.dev) (fallback, or `public`) | npm packages from `package-lock.json` | Package names and versions; then each matching advisory is fetched by its ID |
+| [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) (fallback, or `public`) | Which CVEs are being exploited | Nothing: the catalogue is downloaded whole |
 
-Nothing about your app is sent: no URL, no environment, no code. Requests identify themselves as `ruvelo/laravel-security-alerts`. Answers are cached (an hour for advisories, six hours for the catalogue), so running the command twice is instant; `--fresh` skips the cache. Use a mirror or Private Packagist by changing `sources.packagist.url`.
+- **Signed answers.** Valtry's answers carry an Ed25519 signature that is checked against keys built into the package (needs PHP's `sodium` extension), along with the nonce and the list of packages asked about. An answer that fails any check is discarded.
+- **Automatic fallback.** If Valtry can't be reached within 5 seconds, answers with an error, sends an answer that doesn't verify, or says its data is stale, that check uses Packagist, OSV and CISA directly, and Valtry is left alone for five minutes. The command, the report and `--json` say which path answered ("Checked 67 Composer and 38 npm packages via Valtry, signed" or "via public feeds").
+- **Opt out.** Set `SECURITY_ALERTS_SOURCE=public` (or `'source' => 'public'` in the config) to never contact Valtry. `RUVELO_ADVISORIES_SOURCE=public` in the environment does the same and wins over the config.
+- Valtry doesn't log the names it is sent or pair them with your address; its privacy terms are on [the API page](https://valtry.co.uk/docs/api/advisories).
+
+Nothing about your app is sent: no URL, no environment, no code. Requests identify themselves as `ruvelo/laravel-security-alerts`. Answers are cached (an hour for advisories, six hours for the catalogue), so running the command twice is instant; `--fresh` skips the cache. Use a mirror or Private Packagist by changing `sources.packagist.url`. HTTP goes through Guzzle; to use your own PSR-18 client (a proxy, say), bind it to `Psr\Http\Client\ClientInterface`.
 
 ## The command
 
@@ -130,8 +138,10 @@ php artisan vendor:publish --tag=security-alerts-config
 | `npm.enabled` | `true` | Check `package-lock.json` when there is one |
 | `npm.lockfile` | `base_path('package-lock.json')` | |
 | `npm.include_dev` | `true` | Laravel apps list axios, Alpine and friends as devDependencies because Vite bundles them, so they count |
+| `source` | `valtry` | `valtry` or `public` (`SECURITY_ALERTS_SOURCE`) |
+| `valtry_url` | Valtry's Advisory API | |
 | `sources.packagist.url`, `sources.osv.url`, `sources.kev.url` | the public feeds | For mirrors |
-| `sources.kev.enabled` | `true` | Mark exploited findings |
+| `sources.kev.enabled` | `true` | Download CISA's catalogue; Valtry's answers carry the exploited verdict regardless |
 | `cache.store` | `null` (`SECURITY_ALERTS_CACHE_STORE`) | Your default store when null |
 | `cache.advisories_ttl`, `cache.kev_ttl`, `cache.osv_details_ttl` | 1 hour, 6 hours, 1 week | In seconds |
 | `http.timeout`, `http.tries` | `15`, `2` | Per request |
@@ -177,15 +187,17 @@ SecurityAlerts::notifyUsing(fn () => User::where('is_admin', true)->get());
 
 | `Finding` | Type | |
 |---|---|---|
-| `package`, `version` | `string` | `livewire/livewire`, `3.6.2` |
+| `package`, `installed` | `string` | `livewire/livewire`, `3.6.2` |
 | `ecosystem` | `Ecosystem` | `Composer` or `Npm` |
 | `advisoryId`, `title`, `link`, `cve` | `string`, `?string` | `PKSA-…` (Packagist) or `GHSA-…` (OSV) |
-| `severity` | `Severity` | `Critical`, `High`, `Medium`, `Low`, `Unknown` (older advisories have none) |
+| `severity` | `Severity` | `Critical`, `High`, `Medium`, `Low`, `NotRated` (older advisories have none; 1.0 called it `Unknown`) |
 | `fixedIn` | `?string` | `3.6.4`, `>2.10.1`, or null when no fix is known |
 | `exploited` | `?KevEntry` | `cve`, `name`, `dateAdded`, `dueDate`, `ransomware` |
-| `dev` | `bool` | A dev dependency |
+| `isDev` | `bool` | A dev dependency |
 
-`Report` and `Finding` are `JsonSerializable`; `--json` prints exactly that:
+These classes now live in `ruvelo/security-advisories` (`Ruvelo\SecurityAdvisories\Finding`, `Report`, `Severity`, `Ecosystem`, `KevEntry`, `Threshold`); the old `Ruvelo\SecurityAlerts\...` names still resolve. `dateAdded` and `dueDate` are `DateTimeImmutable`. `Report::$source` is `valtry`, `public` or `mixed`.
+
+`Report` and `Finding` are `JsonSerializable`; `--json` prints the report with `version` added beside `installed` on each finding:
 
 ```json
 {
@@ -195,12 +207,15 @@ SecurityAlerts::notifyUsing(fn () => User::where('is_admin', true)->get());
     "packages": { "composer": 67, "npm": 38 },
     "counts": { "exploited": 1, "critical": 2, "high": 4, "medium": 5, "low": 1 },
     "problems": [],
+    "source": "valtry",
+    "sources": { "composer": "valtry", "npm": "valtry" },
     "findings": [
         {
             "key": "composer:livewire/livewire:PKSA-g5js-3ypd-k2kr",
             "ecosystem": "composer",
             "package": "livewire/livewire",
             "version": "3.6.2",
+            "installed": "3.6.2",
             "dev": false,
             "advisory_id": "PKSA-g5js-3ypd-k2kr",
             "title": "Livewire is vulnerable to remote command execution during component property update hydration",
