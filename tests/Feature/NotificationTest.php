@@ -15,10 +15,10 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use RuntimeException;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 use Ruvelo\SecurityAlerts\Notifications\VulnerabilitiesFound;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
-use Ruvelo\SecurityAlerts\Severity;
 use Ruvelo\SecurityAlerts\Tests\TestCase;
 
 class NotificationTest extends TestCase

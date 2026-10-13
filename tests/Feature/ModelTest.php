@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Ruvelo\SecurityAlerts\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Ruvelo\SecurityAlerts\Ecosystem;
+use Ruvelo\SecurityAdvisories\Ecosystem;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
-use Ruvelo\SecurityAlerts\Severity;
 use Ruvelo\SecurityAlerts\Tests\TestCase;
 
 class ModelTest extends TestCase
@@ -38,7 +38,7 @@ class ModelTest extends TestCase
     public function test_scopes(): void
     {
         SecurityAlert::factory()->severity(Severity::Low)->forPackage('a/low')->create();
-        SecurityAlert::factory()->severity(Severity::Unknown)->forPackage('a/unknown')->create();
+        SecurityAlert::factory()->severity(Severity::NotRated)->forPackage('a/unknown')->create();
         SecurityAlert::factory()->severity(Severity::Critical)->forPackage('b/critical')->create();
         SecurityAlert::factory()->severity(Severity::High)->forPackage('a/high')->create();
         SecurityAlert::factory()->exploited('2026-01-01')->forPackage('z/old-exploit')->create();

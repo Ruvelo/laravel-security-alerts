@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Ruvelo\SecurityAlerts\Tests\Feature\Integrations;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Integrations\Health\SecurityAlertsCheck;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
-use Ruvelo\SecurityAlerts\Severity;
 use Ruvelo\SecurityAlerts\Tests\TestCase;
 use Spatie\Health\Enums\Status;
 

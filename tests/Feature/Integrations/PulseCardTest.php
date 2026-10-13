@@ -8,11 +8,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Pulse\PulseServiceProvider;
 use Livewire\Livewire;
 use Livewire\LivewireServiceProvider;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Integrations\Pulse\SecurityAlertsCard;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
 use Ruvelo\SecurityAlerts\SecurityAlertsServiceProvider;
-use Ruvelo\SecurityAlerts\Severity;
 use Ruvelo\SecurityAlerts\Tests\TestCase;
 
 class PulseCardTest extends TestCase

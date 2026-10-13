@@ -6,11 +6,11 @@ namespace Ruvelo\SecurityAlerts\Tests\Feature;
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
-use Ruvelo\SecurityAlerts\Ecosystem;
-use Ruvelo\SecurityAlerts\Finding;
+use Ruvelo\SecurityAdvisories\Ecosystem;
+use Ruvelo\SecurityAdvisories\Finding;
+use Ruvelo\SecurityAdvisories\Severity;
+use Ruvelo\SecurityAdvisories\Sources\PackagistAdvisorySource;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
-use Ruvelo\SecurityAlerts\Severity;
-use Ruvelo\SecurityAlerts\Sources\Packagist;
 use Ruvelo\SecurityAlerts\Tests\TestCase;
 
 class ScanTest extends TestCase
@@ -29,13 +29,13 @@ class ScanTest extends TestCase
 
         $first = $report->findings[0];
         $this->assertSame('livewire/livewire', $first->package);
-        $this->assertSame('3.6.2', $first->version);
+        $this->assertSame('3.6.2', $first->installed);
         $this->assertSame('3.6.4', $first->fixedIn);
         $this->assertSame('CVE-2025-54068', $first->cve);
         $this->assertSame(Severity::Critical, $first->severity);
         $this->assertTrue($first->isExploited());
-        $this->assertSame('2026-03-20', $first->exploited?->dateAdded->toDateString());
-        $this->assertSame('2026-04-03', $first->exploited?->dueDate?->toDateString());
+        $this->assertSame('2026-03-20', $first->exploited?->dateAdded->format('Y-m-d'));
+        $this->assertSame('2026-04-03', $first->exploited?->dueDate?->format('Y-m-d'));
         $this->assertSame('https://github.com/advisories/GHSA-29cq-5w36-x7w3', $first->link);
 
         $this->assertSame(
@@ -46,7 +46,7 @@ class ScanTest extends TestCase
         $formData = $report->findings[1];
         $this->assertSame(Ecosystem::Npm, $formData->ecosystem);
         $this->assertSame('4.0.4', $formData->fixedIn);
-        $this->assertTrue($formData->dev);
+        $this->assertTrue($formData->isDev);
         $this->assertFalse($formData->isExploited());
     }
 
@@ -94,7 +94,7 @@ class ScanTest extends TestCase
 
         $phpunit = array_values(array_filter($report->findings, fn (Finding $f) => $f->package === 'phpunit/phpunit'));
         $this->assertCount(1, $phpunit);
-        $this->assertTrue($phpunit[0]->dev);
+        $this->assertTrue($phpunit[0]->isDev);
         $this->assertSame('11.5.50', $phpunit[0]->fixedIn);
     }
 
@@ -141,7 +141,7 @@ class ScanTest extends TestCase
         $report = SecurityAlerts::scan();
 
         $this->assertFalse($report->isComplete());
-        $this->assertSame(['No composer.lock at /nowhere/composer.lock, so PHP packages weren\'t checked.'], $report->problems);
+        $this->assertSame(['Couldn\'t find composer.lock at /nowhere/composer.lock, so Composer packages weren\'t checked.'], $report->problems);
         $this->assertSame([Ecosystem::Npm], $report->checked);
         $this->assertCount(4, $report->findings);
     }
@@ -153,7 +153,7 @@ class ScanTest extends TestCase
 
         $report = SecurityAlerts::scan();
 
-        $this->assertStringContainsString('it has no "packages" list. PHP packages weren\'t checked.', $report->problems[0]);
+        $this->assertStringContainsString('it has no "packages" list. Composer packages weren\'t checked.', $report->problems[0]);
     }
 
     public function test_packagist_down(): void
@@ -163,7 +163,7 @@ class ScanTest extends TestCase
         $report = SecurityAlerts::scan();
 
         $this->assertFalse($report->isComplete());
-        $this->assertSame(['Packagist couldn\'t be reached: it answered HTTP 502. PHP packages weren\'t checked.'], $report->problems);
+        $this->assertSame(['Packagist couldn\'t be reached: it answered HTTP 502. Composer packages weren\'t checked.'], $report->problems);
         $this->assertSame([Ecosystem::Npm], $report->checked);
         $this->assertSame(['composer' => 67, 'npm' => 38], $report->packages);
     }
@@ -193,7 +193,7 @@ class ScanTest extends TestCase
 
         $report = SecurityAlerts::scan();
 
-        $this->assertSame(['OSV couldn\'t be reached: details for GHSA-fjxv-7rqg-78g4 couldn\'t be fetched. npm packages weren\'t checked.'], $report->problems);
+        $this->assertSame(['OSV couldn\'t be reached: it answered HTTP 500. Npm packages weren\'t checked.'], $report->problems);
         $this->assertSame([Ecosystem::Composer], $report->checked);
     }
 
@@ -262,7 +262,7 @@ class ScanTest extends TestCase
 
     public function test_many_packages_are_batched(): void
     {
-        $packages = array_map(fn (int $i) => ['name' => "acme/package-{$i}", 'version' => '1.0.0'], range(1, Packagist::BATCH + 50));
+        $packages = array_map(fn (int $i) => ['name' => "acme/package-{$i}", 'version' => '1.0.0'], range(1, PackagistAdvisorySource::BATCH + 50));
         $this->lockfile('composer', ['packages' => $packages]);
         config()->set('security-alerts.npm.enabled', false);
         Http::fake([

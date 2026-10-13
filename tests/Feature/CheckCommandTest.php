@@ -31,7 +31,7 @@ class CheckCommandTest extends TestCase
         $this->assertStringContainsString('form-data npm dev', $output);
         $this->assertStringContainsString('13 vulnerabilities in 8 packages: 1 exploited in the wild, 2 critical, 4 high, 5 medium, 1 low.', $output);
         $this->assertStringContainsString('Update livewire/livewire to 3.6.4 or later today.', $output);
-        $this->assertStringContainsString('Checked 67 Composer and 38 npm packages.', $output);
+        $this->assertStringContainsString('Checked 67 Composer and 38 npm packages via public feeds.', $output);
         $this->assertLessThan(strpos($output, 'predis/predis'), strpos($output, 'livewire/livewire'));
         $this->assertStringNotContainsStringIgnoringCase('valtry', $output);
     }
@@ -99,7 +99,7 @@ class CheckCommandTest extends TestCase
         $this->fakeFeeds();
 
         $this->artisan('security-alerts:check --fail-on=severe')
-            ->expectsOutputToContain('Unknown threshold "severe"')
+            ->expectsOutputToContain('"severe" isn\'t a threshold')
             ->assertExitCode(1);
         Http::assertNothingSent();
     }
@@ -135,7 +135,7 @@ class CheckCommandTest extends TestCase
         $this->lockfile('composer', ['packages' => [['name' => 'laravel/framework', 'version' => 'v13.35.0'], ['name' => 'nesbot/carbon', 'version' => '3.14.2']]]);
 
         $this->artisan('security-alerts:check --fail-on=any')
-            ->expectsOutputToContain('No known vulnerabilities in 2 Composer packages.')
+            ->expectsOutputToContain('No known vulnerabilities in 2 Composer packages, checked via public feeds.')
             ->assertExitCode(0);
     }
 

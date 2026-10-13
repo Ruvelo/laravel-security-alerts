@@ -9,14 +9,14 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
-use Ruvelo\SecurityAlerts\Ecosystem;
+use Ruvelo\SecurityAdvisories\Ecosystem;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Events\VulnerabilityExploited;
 use Ruvelo\SecurityAlerts\Events\VulnerabilityFound;
 use Ruvelo\SecurityAlerts\Events\VulnerabilityResolved;
 use Ruvelo\SecurityAlerts\Exceptions\NotInstalled;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
-use Ruvelo\SecurityAlerts\Severity;
 use Ruvelo\SecurityAlerts\Tests\TestCase;
 
 class CheckTest extends TestCase
@@ -60,7 +60,7 @@ class CheckTest extends TestCase
         $this->assertTrue($alert->isOpen());
         $this->assertTrue($alert->isExploited());
         $this->assertSame($result->report->findings[0]->key(), $alert->toFinding()->key());
-        $this->assertSame('2026-03-20', $alert->toFinding()->exploited?->dateAdded->toDateString());
+        $this->assertSame('2026-03-20', $alert->toFinding()->exploited?->dateAdded->format('Y-m-d'));
     }
 
     public function test_the_same_findings_are_never_reported_twice(): void

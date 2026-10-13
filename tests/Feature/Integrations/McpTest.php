@@ -8,11 +8,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\Fluent\AssertableJson;
 use Laravel\Mcp\Server\McpServiceProvider;
 use Laravel\Mcp\Server\Registrar;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Mcp\SecurityAlertsServer;
 use Ruvelo\SecurityAlerts\Mcp\Tools\ListSecurityAlerts;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 use Ruvelo\SecurityAlerts\SecurityAlertsServiceProvider;
-use Ruvelo\SecurityAlerts\Severity;
 use Ruvelo\SecurityAlerts\Tests\TestCase;
 
 class McpTest extends TestCase
