@@ -10,9 +10,9 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
-use Ruvelo\SecurityAlerts\Severity;
 
 #[IsReadOnly]
 class ListSecurityAlerts extends Tool

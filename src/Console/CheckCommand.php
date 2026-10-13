@@ -6,13 +6,14 @@ namespace Ruvelo\SecurityAlerts\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
-use Ruvelo\SecurityAlerts\Ecosystem;
+use Ruvelo\SecurityAdvisories\Ecosystem;
+use Ruvelo\SecurityAdvisories\Exceptions\SecurityAdvisoriesException;
+use Ruvelo\SecurityAdvisories\Finding;
+use Ruvelo\SecurityAdvisories\Report;
+use Ruvelo\SecurityAdvisories\Severity;
+use Ruvelo\SecurityAdvisories\Threshold;
 use Ruvelo\SecurityAlerts\Exceptions\SecurityAlertsException;
-use Ruvelo\SecurityAlerts\Finding;
-use Ruvelo\SecurityAlerts\Report;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
-use Ruvelo\SecurityAlerts\Severity;
-use Ruvelo\SecurityAlerts\Threshold;
 use Symfony\Component\Console\Helper\TableSeparator;
 
 class CheckCommand extends Command
@@ -39,14 +40,14 @@ class CheckCommand extends Command
             } else {
                 $report = SecurityAlerts::scan((bool) $this->option('fresh'));
             }
-        } catch (SecurityAlertsException $e) {
+        } catch (SecurityAlertsException|SecurityAdvisoriesException $e) {
             $this->components->error($e->getMessage());
 
             return self::FAILURE;
         }
 
         if ($this->option('json')) {
-            $this->line((string) json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            $this->line((string) json_encode(SecurityAlerts::toArray($report), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         } else {
             $this->render($report);
 
@@ -68,7 +69,7 @@ class CheckCommand extends Command
 
         if ($report->isClean()) {
             if ($report->packageCount() > 0) {
-                $this->components->info('No known vulnerabilities in '.$this->scope($report).'.');
+                $this->components->info('No known vulnerabilities in '.$this->scope($report).', checked '.SecurityAlerts::sourceLabel($report, true).'.');
             }
         } else {
             $rows = [];
@@ -103,14 +104,14 @@ class CheckCommand extends Command
             $advisory .= "\n<fg=gray>".implode(' · ', $details).'</>';
         }
         if ($finding->exploited !== null) {
-            $advisory .= "\n<fg=red>In CISA KEV since ".$finding->exploited->dateAdded->toDateString()
-                .($finding->exploited->dueDate !== null ? ', patch by '.$finding->exploited->dueDate->toDateString() : '').'</>';
+            $advisory .= "\n<fg=red>In CISA KEV since ".$finding->exploited->dateAdded->format('Y-m-d')
+                .($finding->exploited->dueDate !== null ? ', patch by '.$finding->exploited->dueDate->format('Y-m-d') : '').'</>';
         }
 
         return [
             $finding->isExploited() ? '<fg=red;options=bold>Exploited</>' : $this->severity($finding->severity),
-            $finding->package.($finding->ecosystem === Ecosystem::Npm ? ' <fg=gray>npm</>' : '').($finding->dev ? ' <fg=gray>dev</>' : ''),
-            $finding->version,
+            $finding->package.($finding->ecosystem === Ecosystem::Npm ? ' <fg=gray>npm</>' : '').($finding->isDev ? ' <fg=gray>dev</>' : ''),
+            $finding->installed,
             $finding->fixedIn !== null ? '<fg=green>'.$finding->fixedIn.'</>' : '<fg=gray>–</>',
             $advisory,
         ];
@@ -122,7 +123,7 @@ class CheckCommand extends Command
             Severity::Critical => '<fg=red>Critical</>',
             Severity::High => '<fg=yellow>High</>',
             Severity::Medium => 'Medium',
-            Severity::Low, Severity::Unknown => '<fg=gray>'.$severity->label().'</>',
+            Severity::Low, Severity::NotRated => '<fg=gray>'.$severity->label().'</>',
         };
     }
 
@@ -135,7 +136,7 @@ class CheckCommand extends Command
         foreach ($report->counts() as $kind => $count) {
             $parts[] = $kind === 'exploited'
                 ? "<fg=red;options=bold>{$count} exploited in the wild</>"
-                : $count.' '.($kind === 'unknown' ? 'unrated' : $kind);
+                : $count.' '.($kind === 'not_rated' ? 'unrated' : $kind);
         }
 
         $total = count($report->findings);
@@ -149,7 +150,7 @@ class CheckCommand extends Command
             $lines[] = '<options=bold>Update '.$worst->package.($worst->fixedIn !== null && ! str_starts_with($worst->fixedIn, '>') ? ' to '.$worst->fixedIn.' or later' : '').' today.</>';
         }
 
-        $lines[] = '<fg=gray>Checked '.$this->scope($report).'.</>';
+        $lines[] = '<fg=gray>Checked '.$this->scope($report).' '.SecurityAlerts::sourceLabel($report, true).'.</>';
 
         return $lines;
     }

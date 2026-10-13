@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ruvelo\SecurityAlerts;
 
 use Illuminate\Support\Collection;
+use Ruvelo\SecurityAdvisories\Report;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 
 /**

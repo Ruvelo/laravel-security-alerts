@@ -6,3 +6,5 @@
 .DS_Store
 /testbench.yaml
 /build/
+/composer.local.json
+/composer.local.lock

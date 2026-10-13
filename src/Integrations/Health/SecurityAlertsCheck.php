@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Ruvelo\SecurityAlerts\Integrations\Health;
 
 use Illuminate\Support\Str;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
-use Ruvelo\SecurityAlerts\Severity;
 use Spatie\Health\Checks\Check;
 use Spatie\Health\Checks\Result;
 

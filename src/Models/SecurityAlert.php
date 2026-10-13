@@ -8,11 +8,11 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Ruvelo\SecurityAdvisories\Ecosystem;
+use Ruvelo\SecurityAdvisories\Finding;
+use Ruvelo\SecurityAdvisories\KevEntry;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Database\Factories\SecurityAlertFactory;
-use Ruvelo\SecurityAlerts\Ecosystem;
-use Ruvelo\SecurityAlerts\Finding;
-use Ruvelo\SecurityAlerts\KevEntry;
-use Ruvelo\SecurityAlerts\Severity;
 
 /**
  * A finding the package has seen, remembered so the same alert is never
@@ -63,7 +63,7 @@ class SecurityAlert extends Model
     {
         return [
             'ecosystem' => Ecosystem::class,
-            'severity' => Severity::class,
+            'severity' => StoredSeverity::class,
             'dev' => 'boolean',
             'ransomware' => 'boolean',
             'exploited_at' => 'immutable_date',
@@ -126,14 +126,14 @@ class SecurityAlert extends Model
     }
 
     /**
-     * The finding as a check would report it today.
+     * The finding as a check would report it today (aliases and links are not stored).
      */
     public function toFinding(): Finding
     {
         return new Finding(
             ecosystem: $this->ecosystem,
             package: $this->package,
-            version: $this->version,
+            installed: $this->version,
             advisoryId: $this->advisory_id,
             title: $this->title,
             severity: $this->severity,
@@ -144,7 +144,7 @@ class SecurityAlert extends Model
             exploited: $this->exploited_at !== null
                 ? new KevEntry((string) $this->cve, $this->title, $this->exploited_at, $this->kev_due_date, (bool) $this->ransomware)
                 : null,
-            dev: $this->dev,
+            isDev: $this->dev,
         );
     }
 
@@ -153,8 +153,11 @@ class SecurityAlert extends Model
      */
     public function present(): array
     {
+        $finding = $this->toFinding()->toArray();
+
         return [
-            ...$this->toFinding()->toArray(),
+            ...$finding,
+            'version' => $finding['installed'],
             'first_seen_at' => $this->first_seen_at->toIso8601String(),
             'last_seen_at' => $this->last_seen_at->toIso8601String(),
             'resolved_at' => $this->resolved_at?->toIso8601String(),

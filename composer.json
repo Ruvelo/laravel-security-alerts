@@ -1,6 +1,6 @@
 {
     "name": "ruvelo/laravel-security-alerts",
-    "description": "Tells you when a package your Laravel app runs becomes vulnerable, and when a known flaw starts being exploited in the wild. Packagist, OSV and CISA KEV, no keys.",
+    "description": "Tells you when a package your Laravel app runs becomes vulnerable, and when a known flaw starts being exploited in the wild. Valtry's signed Advisory API or the public feeds (Packagist, OSV, CISA KEV), no keys.",
     "keywords": [
         "laravel",
         "security",
@@ -26,9 +26,9 @@
     ],
     "require": {
         "php": "^8.3",
-        "composer/semver": "^3.4",
-        "guzzlehttp/promises": "^2.0.3",
-        "laravel/framework": "^12.4.1|^13.0"
+        "guzzlehttp/guzzle": "^7.8.2",
+        "laravel/framework": "^12.4.1|^13.0",
+        "ruvelo/security-advisories": "^1.1"
     },
     "require-dev": {
         "larastan/larastan": "^3.13",
@@ -54,7 +54,10 @@
         "psr-4": {
             "Ruvelo\\SecurityAlerts\\": "src/",
             "Ruvelo\\SecurityAlerts\\Database\\Factories\\": "database/factories/"
-        }
+        },
+        "files": [
+            "src/aliases.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

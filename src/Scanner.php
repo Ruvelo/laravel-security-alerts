@@ -4,101 +4,106 @@ declare(strict_types=1);
 
 namespace Ruvelo\SecurityAlerts;
 
-use Carbon\CarbonImmutable;
-use Ruvelo\SecurityAlerts\Exceptions\LockfileUnreadable;
-use Ruvelo\SecurityAlerts\Exceptions\SourceUnavailable;
-use Ruvelo\SecurityAlerts\Lockfiles\ComposerLock;
-use Ruvelo\SecurityAlerts\Lockfiles\NpmLock;
-use Ruvelo\SecurityAlerts\Sources\Kev;
-use Ruvelo\SecurityAlerts\Sources\Osv;
-use Ruvelo\SecurityAlerts\Sources\Packagist;
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\HttpFactory;
+use Illuminate\Support\Facades\Cache;
+use Psr\Http\Client\ClientInterface;
+use Psr\SimpleCache\CacheInterface;
+use Ruvelo\SecurityAdvisories\Cache\ResponseCache;
+use Ruvelo\SecurityAdvisories\Cache\Ttls;
+use Ruvelo\SecurityAdvisories\Http\JsonClient;
+use Ruvelo\SecurityAdvisories\Packages\ComposerLockReader;
+use Ruvelo\SecurityAdvisories\Packages\NpmLockReader;
+use Ruvelo\SecurityAdvisories\Report;
+use Ruvelo\SecurityAdvisories\Scanner as Core;
+use Ruvelo\SecurityAdvisories\Sources\FallbackAdvisorySource;
+use Ruvelo\SecurityAdvisories\Sources\KevCatalogue;
+use Ruvelo\SecurityAdvisories\Sources\OsvSource;
+use Ruvelo\SecurityAdvisories\Sources\PackagistAdvisorySource;
+use Ruvelo\SecurityAdvisories\Valtry\ValtryAdvisorySource;
 
 /**
- * Reads the lockfiles, asks the advisory sources about the installed
- * versions and marks what's exploited in the wild. Changes nothing: see
+ * Wires ruvelo/security-advisories to this app: the lockfiles from the
+ * config, Guzzle for HTTP (or a PSR-18 client bound to
+ * Psr\Http\Client\ClientInterface), the Laravel cache. Everything else,
+ * reading, asking, matching, is the core's. Changes nothing: see
  * SecurityAlerts::check() for remembering and notifying.
  */
 class Scanner
 {
-    public function __construct(
-        private Packagist $packagist,
-        private Osv $osv,
-        private Kev $kev,
-    ) {}
+    public const USER_AGENT = 'ruvelo/laravel-security-alerts (+https://github.com/Ruvelo/laravel-security-alerts)';
 
     public function scan(bool $fresh = false): Report
     {
-        $findings = [];
-        $packages = [];
-        $checked = [];
-        $problems = [];
-        $pending = [];
+        return $this->core()->scan($fresh);
+    }
 
-        // Composer, through Packagist.
-        try {
-            $installed = ComposerLock::read($this->path('composer'), (bool) config('security-alerts.composer.include_dev', false));
+    private function core(): Core
+    {
+        $factory = new HttpFactory;
+        $http = new JsonClient($this->client((float) config('security-alerts.http.timeout', 15)), $factory, $factory, self::USER_AGENT, max(1, (int) config('security-alerts.http.tries', 2)));
+        $cache = new ResponseCache($this->cache(), new Ttls(
+            (int) config('security-alerts.cache.advisories_ttl', 3600),
+            (int) config('security-alerts.cache.kev_ttl', 21600),
+            (int) config('security-alerts.cache.osv_details_ttl', 604800),
+        ));
 
-            if ($installed === null) {
-                $problems[] = 'No composer.lock at '.$this->path('composer').', so PHP packages weren\'t checked.';
-            } else {
-                $packages[Ecosystem::Composer->value] = count($installed);
-                $byName = $this->packagist->advisories(array_map(fn (Package $p): string => $p->name, $installed), $fresh);
+        $readers = [new ComposerLockReader($this->path('composer'), (bool) config('security-alerts.composer.include_dev', false))];
+        $public = [new PackagistAdvisorySource($http, $cache, $this->url('packagist', PackagistAdvisorySource::URL))];
 
-                foreach ($installed as $package) {
-                    foreach ($byName[$package->name] ?? [] as $advisory) {
-                        if (Versions::affects($package->version, (string) $advisory->affectedVersions)) {
-                            $pending[] = [$package, $advisory, Versions::fixedIn($package->version, (string) $advisory->affectedVersions)];
-                        }
-                    }
-                }
-                $checked[] = Ecosystem::Composer;
-            }
-        } catch (LockfileUnreadable|SourceUnavailable $e) {
-            $problems[] = $e->getMessage().' PHP packages weren\'t checked.';
-        }
-
-        // npm, through OSV. A missing package-lock.json is normal: not every app has one.
+        // A missing package-lock.json is normal: not every app has one.
         if (config('security-alerts.npm.enabled', true)) {
-            try {
-                $installed = NpmLock::read($this->path('npm'), (bool) config('security-alerts.npm.include_dev', true));
-
-                if ($installed !== null) {
-                    $packages[Ecosystem::Npm->value] = count($installed);
-                    foreach ($this->osv->advisories($installed, $fresh) as [$package, $advisory]) {
-                        $pending[] = [$package, $advisory, $advisory->fixedIn];
-                    }
-                    $checked[] = Ecosystem::Npm;
-                }
-            } catch (LockfileUnreadable|SourceUnavailable $e) {
-                $problems[] = $e->getMessage().' npm packages weren\'t checked.';
-            }
+            $readers[] = new NpmLockReader($this->path('npm'), (bool) config('security-alerts.npm.include_dev', true));
+            $public[] = new OsvSource($http, $cache, $this->url('osv', OsvSource::URL));
         }
 
-        // Exploited in the wild, through CISA KEV.
-        $exploited = [];
-        $kevChecked = false;
-        if (config('security-alerts.sources.kev.enabled', true)) {
-            try {
-                $cves = array_values(array_unique(array_filter(array_map(fn (array $p): ?string => $p[1]->cve, $pending))));
-                $exploited = $this->kev->lookup($cves, $fresh);
-                $kevChecked = true;
-            } catch (SourceUnavailable $e) {
-                $problems[] = $e->getMessage().' Findings aren\'t marked as exploited this time.';
-            }
-        }
+        $source = config('security-alerts.source');
+        $viaValtry = Core::source(is_string($source) ? $source : null) === Core::SOURCE_VALTRY;
 
-        $seen = [];
-        foreach ($pending as [$package, $advisory, $fixedIn]) {
-            $finding = Finding::make($package, $advisory, $fixedIn, $advisory->cve !== null ? ($exploited[$advisory->cve] ?? null) : null);
+        $advisories = $viaValtry
+            ? [new FallbackAdvisorySource(
+                new ValtryAdvisorySource(
+                    new JsonClient($this->client(ValtryAdvisorySource::DEADLINE), $factory, $factory, self::USER_AGENT, 1),
+                    $cache,
+                    $this->url('valtry', ValtryAdvisorySource::URL),
+                    $this->valtryKeys(),
+                ),
+                $public,
+            )]
+            : $public;
 
-            // The same advisory can match two installed copies (npm): report it once.
-            if (! isset($seen[$finding->key()])) {
-                $seen[$finding->key()] = true;
-                $findings[] = $finding;
-            }
-        }
+        $kev = config('security-alerts.sources.kev.enabled', true) ? new KevCatalogue($http, $cache, $this->url('kev', KevCatalogue::URL)) : null;
 
-        return new Report($findings, $packages, $checked, $problems, $kevChecked, CarbonImmutable::now());
+        return new Core($readers, $advisories, $kev);
+    }
+
+    /**
+     * The keys Valtry's answers are verified against: null for the ones the
+     * core pins. Only tests, which sign their own answers, say otherwise.
+     *
+     * @return array<string, string>|null
+     */
+    protected function valtryKeys(): ?array
+    {
+        return null;
+    }
+
+    /**
+     * Bind a PSR-18 client to Psr\Http\Client\ClientInterface to use your own
+     * (a proxy, say); otherwise a Guzzle client with the configured timeout.
+     */
+    private function client(float $timeout): ClientInterface
+    {
+        return app()->bound(ClientInterface::class)
+            ? app(ClientInterface::class)
+            : new Client(['timeout' => max(1.0, $timeout), 'connect_timeout' => min(5.0, max(1.0, $timeout)), 'http_errors' => false]);
+    }
+
+    private function cache(): CacheInterface
+    {
+        $store = config('security-alerts.cache.store');
+
+        return Cache::store(is_string($store) && $store !== '' ? $store : null);
     }
 
     private function path(string $ecosystem): string
@@ -107,5 +112,12 @@ class Scanner
         $default = $ecosystem === 'composer' ? 'composer.lock' : 'package-lock.json';
 
         return is_string($path) && $path !== '' ? $path : base_path($default);
+    }
+
+    private function url(string $source, string $default): string
+    {
+        $url = config($source === 'valtry' ? 'security-alerts.valtry_url' : "security-alerts.sources.{$source}.url");
+
+        return is_string($url) && $url !== '' ? $url : $default;
     }
 }

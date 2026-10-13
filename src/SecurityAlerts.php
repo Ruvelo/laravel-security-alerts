@@ -9,6 +9,7 @@ use Closure;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Ruvelo\SecurityAdvisories\Report;
 use Ruvelo\SecurityAlerts\Exceptions\NotInstalled;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
 
@@ -86,6 +87,35 @@ final class SecurityAlerts
     }
 
     /**
+     * The report as JSON-ready data: the core's shape, plus `version` (the
+     * installed version, as 1.0 called it) on each finding.
+     *
+     * @return array<string, mixed>
+     */
+    public static function toArray(Report $report): array
+    {
+        $data = $report->toArray();
+        $data['findings'] = array_map(fn (array $finding): array => ['version' => $finding['installed']] + $finding, $data['findings']);
+
+        return $data;
+    }
+
+    /**
+     * Where a report's advisories came from, in words: "Valtry, signed" or
+     * "public feeds" (both when ecosystems differed). With $via, "via ..." for a sentence.
+     */
+    public static function sourceLabel(Report $report, bool $via = false): string
+    {
+        $label = match ($report->source) {
+            'valtry' => 'Valtry, signed',
+            'mixed' => 'Valtry, signed, and public feeds',
+            default => 'public feeds',
+        };
+
+        return $via ? 'via '.$label : $label;
+    }
+
+    /**
      * When the last check ran and what it found, or null if it never has
      * (or the cache was cleared since).
      *
@@ -118,7 +148,7 @@ final class SecurityAlerts
     private static function rememberLastCheck(Report $report): void
     {
         self::cache()->forever(self::LAST_CHECK_KEY, [
-            'checked_at' => ($report->checkedAt ?? CarbonImmutable::now())->toIso8601String(),
+            'checked_at' => CarbonImmutable::now()->toIso8601String(),
             'packages' => $report->packageCount(),
             'findings' => count($report->findings),
             'exploited' => count($report->exploited()),

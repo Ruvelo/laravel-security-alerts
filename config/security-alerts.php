@@ -79,12 +79,24 @@ return [
     | Sources
     |--------------------------------------------------------------------------
     |
-    | Free and keyless. Packagist and OSV receive package names and versions,
-    | the same data `composer audit` and `npm audit` send; nothing else about
-    | your app. The CISA KEV catalogue is downloaded whole. Point `url` at a
-    | mirror or Private Packagist if you use one.
+    | `source`: "valtry" (the default) asks Valtry's signed Advisory API, which
+    | serves the same Packagist, OSV and CISA KEV data. It is sent package names
+    | only, never versions, and its answers are signature-checked. Whenever it
+    | can't answer, the public feeds are used instead, automatically. Set
+    | SECURITY_ALERTS_SOURCE=public to never contact Valtry. Details in the
+    | README ("Data sources").
+    |
+    | The public feeds are free and keyless. Packagist receives package names;
+    | OSV receives the names and versions of your npm packages, as `npm audit`
+    | does. The CISA KEV catalogue is downloaded whole (`kev.enabled` only
+    | switches off that download: Valtry's answers carry the exploited verdict).
+    | Point `url` at a mirror or Private Packagist if you use one.
     |
     */
+
+    'source' => env('SECURITY_ALERTS_SOURCE', 'valtry'),
+
+    'valtry_url' => 'https://valtry.co.uk/api/advisories/v1/query',
 
     'sources' => [
         'packagist' => ['url' => 'https://packagist.org/api/security-advisories/'],

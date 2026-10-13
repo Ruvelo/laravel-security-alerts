@@ -6,9 +6,9 @@ namespace Ruvelo\SecurityAlerts\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
-use Ruvelo\SecurityAlerts\Ecosystem;
+use Ruvelo\SecurityAdvisories\Ecosystem;
+use Ruvelo\SecurityAdvisories\Severity;
 use Ruvelo\SecurityAlerts\Models\SecurityAlert;
-use Ruvelo\SecurityAlerts\Severity;
 
 /**
  * Open, already-notified alerts for host-app tests: a Pulse dashboard, a

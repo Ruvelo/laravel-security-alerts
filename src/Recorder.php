@@ -8,6 +8,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Ruvelo\SecurityAdvisories\Finding;
+use Ruvelo\SecurityAdvisories\Reconciler;
+use Ruvelo\SecurityAdvisories\Report;
 use Ruvelo\SecurityAlerts\Events\VulnerabilityExploited;
 use Ruvelo\SecurityAlerts\Events\VulnerabilityFound;
 use Ruvelo\SecurityAlerts\Events\VulnerabilityResolved;
@@ -45,21 +48,40 @@ class Recorder
         $resolved = new Collection;
 
         DB::connection($model->getConnectionName())->transaction(function () use ($report, $now, $found, $exploited, $resolved): void {
-            $keys = array_map(fn (Finding $finding): string => $finding->key(), $report->findings);
-            $known = SecurityAlert::query()->whereIn('key', $keys)->get()->keyBy('key');
+            // What the table says is known: the open rows, by the key each was first stored under.
+            $open = SecurityAlert::query()->open()->get()->keyBy('key');
+            $known = $open->map(fn (SecurityAlert $alert): bool => $alert->isExploited())->all();
+            $lastSeen = $open->map(fn (SecurityAlert $alert): array => $alert->toFinding()->toArray())->all();
 
+            // The core decides what is news, whichever source named the advisory this time.
+            $reconciler = new Reconciler;
+            $changes = $reconciler->reconcile($known, $report, $lastSeen);
+            $next = $reconciler->next($known, $report, [], $lastSeen);
+            $seen = $reconciler->lastSeen($lastSeen, $report, $next);
+
+            $current = [];
             foreach ($report->findings as $finding) {
-                /** @var SecurityAlert|null $alert */
-                $alert = $known->get($finding->key());
-                $isNew = $alert === null || ! $alert->isOpen();
-                $wasExploited = $alert?->isExploited() ?? false;
+                $current[$finding->key()] = $finding;
+            }
+            $isNew = array_flip(array_map(fn (Finding $finding): string => $finding->key(), $changes->new));
 
-                $alert ??= new SecurityAlert(['key' => $finding->key(), 'first_seen_at' => $now]);
+            foreach (array_keys($next) as $key) {
+                $finding = $current[$seen[$key]['key'] ?? ''] ?? null;
+
+                if ($finding === null) {
+                    continue; // not vouched for this time: left as it was
+                }
+
+                // Back after a fix (a downgrade, a revert) is a row to reopen.
+                /** @var SecurityAlert $alert */
+                $alert = $open->get($key) ?? SecurityAlert::query()->where('key', $key)->first() ?? new SecurityAlert(['key' => $key, 'first_seen_at' => $now]);
+                $new = isset($isNew[$finding->key()]);
+                $wasExploited = $alert->isExploited();
 
                 $alert->fill([
                     'ecosystem' => $finding->ecosystem,
                     'package' => $finding->package,
-                    'version' => $finding->version,
+                    'version' => $finding->installed,
                     'advisory_id' => $finding->advisoryId,
                     'title' => $finding->title,
                     'severity' => $finding->severity,
@@ -67,12 +89,11 @@ class Recorder
                     'cve' => $finding->cve,
                     'fixed_in' => $finding->fixedIn,
                     'affected_versions' => $finding->affectedVersions,
-                    'dev' => $finding->dev,
+                    'dev' => $finding->isDev,
                     'last_seen_at' => $now,
                 ]);
 
-                if ($isNew) {
-                    // Back after a fix (a downgrade, a revert): a new alert again.
+                if ($new) {
                     $alert->fill(['resolved_at' => null, 'notified_at' => null, 'first_seen_at' => $now]);
                 }
 
@@ -88,7 +109,7 @@ class Recorder
 
                 $alert->save();
 
-                if ($isNew) {
+                if ($new) {
                     $found->push($alert);
                 }
                 if ($finding->exploited !== null && ! $wasExploited) {
@@ -96,18 +117,14 @@ class Recorder
                 }
             }
 
-            // Only ecosystems checked in full can say a finding is gone.
-            $checked = array_map(fn (Ecosystem $e): string => $e->value, $report->checked);
-
-            if ($checked !== []) {
-                SecurityAlert::query()->open()
-                    ->whereIn('ecosystem', $checked)
-                    ->whereNotIn('key', $keys)
-                    ->get()
-                    ->each(function (SecurityAlert $alert) use ($now, $resolved): void {
-                        $alert->forceFill(['resolved_at' => $now])->save();
-                        $resolved->push($alert);
-                    });
+            foreach ($open as $key => $alert) {
+                if (in_array($key, $changes->resolved, true)) {
+                    $alert->forceFill(['resolved_at' => $now])->save();
+                    $resolved->push($alert);
+                } elseif (! array_key_exists($key, $next)) {
+                    // Two rows for one vulnerability collapsed into the first: close the other quietly.
+                    $alert->forceFill(['resolved_at' => $now])->save();
+                }
             }
         });
 
