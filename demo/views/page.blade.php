@@ -1,6 +1,6 @@
 @php
-    use Ruvelo\SecurityAlerts\Ecosystem;
-    use Ruvelo\SecurityAlerts\Severity;
+    use Ruvelo\SecurityAdvisories\Ecosystem;
+    use Ruvelo\SecurityAdvisories\Severity;
 
     $counts = $report->counts();
     $exploited = $report->exploited();
@@ -240,10 +240,10 @@
 
         @if ($headline)
         <div class="sa-card">
-            <div class="sa-card-head"><strong>Halyard · this morning</strong><span>{{ $report->checkedAt?->format('j M, H:i') }}</span></div>
+            <div class="sa-card-head"><strong>Halyard · this morning</strong><span>{{ now()->format('j M, H:i') }}</span></div>
             <div class="sa-card-body">
                 <span class="sa-chip is-exploited">Exploited in the wild</span>
-                <div class="sa-alert-pkg">{{ $headline->package }} <span>{{ $headline->version }}</span></div>
+                <div class="sa-alert-pkg">{{ $headline->package }} <span>{{ $headline->installed }}</span></div>
                 <p class="sa-alert-title">{{ $headline->title }}</p>
                 <dl class="sa-facts">
                     <dt>Severity</dt><dd>{{ $headline->severity->label() }}@if ($headline->cve) · {{ $headline->cve }}@endif</dd>
@@ -264,9 +264,9 @@
         <div class="sa-summary">
             <strong>{{ count($report->findings) }} vulnerabilities</strong>
             @foreach ($counts as $kind => $count)
-                <span class="sa-chip is-{{ $kind }}">{{ $count }} {{ $kind === 'exploited' ? 'exploited in the wild' : $kind }}</span>
+                <span class="sa-chip is-{{ $kind }}">{{ $count }} {{ $kind === 'exploited' ? 'exploited in the wild' : ($kind === 'not_rated' ? 'not rated' : $kind) }}</span>
             @endforeach
-            <span class="sa-checked">Checked {{ $report->checkedAt?->format('j F Y, H:i') }}</span>
+            <span class="sa-checked">Checked {{ now()->format('j F Y, H:i') }}, {{ Ruvelo\SecurityAlerts\SecurityAlerts::sourceLabel($report, true) }}</span>
         </div>
 
         <table class="sa-table">
@@ -291,14 +291,14 @@
                         </div></td>
                         <td data-label="Package"><div>
                             <span class="sa-pkg">{{ $f->package }}</span>
-                            @if ($f->ecosystem === Ecosystem::Npm || $f->dev)
+                            @if ($f->ecosystem === Ecosystem::Npm || $f->isDev)
                                 <div class="sa-tags">
                                     @if ($f->ecosystem === Ecosystem::Npm)<span class="sa-chip is-quiet">npm</span>@endif
-                                    @if ($f->dev)<span class="sa-chip is-quiet">dev</span>@endif
+                                    @if ($f->isDev)<span class="sa-chip is-quiet">dev</span>@endif
                                 </div>
                             @endif
                         </div></td>
-                        <td data-label="Installed"><div><span class="sa-version">{{ $f->version }}</span></div></td>
+                        <td data-label="Installed"><div><span class="sa-version">{{ $f->installed }}</span></div></td>
                         <td data-label="Fixed in"><div>@if ($fix($f))<span class="sa-fix">{{ $fix($f) }}</span>@else<span class="sa-none">–</span>@endif</div></td>
                         <td class="sa-advisory">
                             @if ($f->link)<a href="{{ $f->link }}">{{ $f->title }}</a>@else{{ $f->title }}@endif
@@ -364,16 +364,17 @@
 
     <section class="sa-section" id="sources">
         <h2>Where it looks, and what it sends</h2>
-        <p>Three free sources, no account or key. Answers are cached, so running the command twice is instant.</p>
+        <p>No account or key. By default the check asks <a href="https://valtry.co.uk/docs/api/advisories">Valtry’s Advisory API</a>, which serves the same Packagist, OSV and CISA data from one signed answer, and uses the public feeds below whenever Valtry can’t answer. Set <code>SECURITY_ALERTS_SOURCE=public</code> to never contact it. Answers are cached, so running the command twice is instant.</p>
         <table class="sa-sources">
             <thead><tr><th scope="col">Source</th><th scope="col">For</th><th scope="col">What leaves your server</th></tr></thead>
             <tbody>
-                <tr><td>Packagist</td><td>Composer packages: the advisories <code>composer audit</code> reads</td><td>Package names, in one POST</td></tr>
-                <tr><td>OSV.dev</td><td>npm packages from <code>package-lock.json</code>, if you have one</td><td>Package names and versions, like <code>npm audit</code></td></tr>
-                <tr><td>CISA KEV</td><td>Which CVEs are being exploited in the wild</td><td>Nothing: the catalogue is downloaded whole</td></tr>
+                <tr><td>Valtry Advisory API (default)</td><td>Composer and npm packages, and which advisories are exploited</td><td>Package names only, never versions; answers are signed and checked</td></tr>
+                <tr><td>Packagist (fallback, or <code>public</code>)</td><td>Composer packages: the advisories <code>composer audit</code> reads</td><td>Package names, in one POST</td></tr>
+                <tr><td>OSV.dev (fallback, or <code>public</code>)</td><td>npm packages from <code>package-lock.json</code>, if you have one</td><td>Package names and versions, like <code>npm audit</code></td></tr>
+                <tr><td>CISA KEV (fallback, or <code>public</code>)</td><td>Which CVEs are being exploited in the wild</td><td>Nothing: the catalogue is downloaded whole</td></tr>
             </tbody>
         </table>
-        <div class="sa-tip"><strong>Nothing about your app</strong> is sent: no URL, no environment, no code. The same names and versions <code>composer audit</code> sends.</div>
+        <div class="sa-tip"><strong>Nothing about your app</strong> is sent: no URL, no environment, no code. Versions never leave your server on the default path; on the public feeds, npm versions go to OSV as with <code>npm audit</code>. This demo was built from recorded answers of the public feeds.</div>
     </section>
 
     <footer class="sa-foot">

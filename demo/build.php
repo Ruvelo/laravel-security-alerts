@@ -7,7 +7,7 @@ declare(strict_types=1);
  *
  * Boots a Laravel app with the package, points it at the lockfiles of
  * Halyard (a made-up billing SaaS) and answers Packagist, OSV and CISA KEV
- * from the responses recorded in tests/fixtures, so the build never touches
+ * (the public source) from the responses recorded in tests/fixtures, so the build never touches
  * the network. Then it runs the real scan, the real artisan command and the
  * real notification, and renders the pages through the HTTP kernel, exactly
  * as an app would.
@@ -28,9 +28,11 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Orchestra\Testbench\Foundation\Application;
+use Psr\Http\Client\ClientInterface;
 use Ruvelo\SecurityAlerts\Notifications\VulnerabilitiesFound;
 use Ruvelo\SecurityAlerts\SecurityAlerts;
 use Ruvelo\SecurityAlerts\SecurityAlertsServiceProvider;
+use Ruvelo\SecurityAlerts\Tests\Support\HttpFacadeClient;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -64,6 +66,7 @@ View::addNamespace('demo', __DIR__.'/views');
 
 config()->set('database.default', 'sqlite');
 config()->set('database.connections.sqlite.database', ':memory:');
+config()->set('security-alerts.source', 'public');
 config()->set('security-alerts.composer.lockfile', FIXTURES.'/composer.lock');
 config()->set('security-alerts.npm.lockfile', FIXTURES.'/package-lock.json');
 config()->set('security-alerts.notify.mail', ['maya@halyard.test', 'tom@halyard.test']);
@@ -74,6 +77,7 @@ Artisan::call('migrate', ['--force' => true]);
 $fixture = fn (string $name): array => json_decode((string) file_get_contents(FIXTURES.'/'.$name), true, 512, JSON_THROW_ON_ERROR);
 
 Http::preventStrayRequests();
+app()->instance(ClientInterface::class, new HttpFacadeClient);
 Http::fake([
     'packagist.org/api/security-advisories/*' => Http::response($fixture('packagist.json')),
     'api.osv.dev/v1/querybatch' => Http::response($fixture('osv-querybatch.json')),
